@@ -10,8 +10,36 @@ DJControllerService::DJControllerService(size_t cache_size)
  * TODO: Implement loadTrackToCache method
  */
 int DJControllerService::loadTrackToCache(AudioTrack& track) {
-    // Your implementation here 
-    return 0; // Placeholder
+    const std::string title = track.get_title();
+
+    // (a) לבדוק אם הטראק כבר בקאש לפי title
+    if (cache.contains(title)) {
+        // HIT – רק לרענן את זמן הגישה דרך get ולחזור 1
+        cache.get(title);  // זה גם מעדכן את ה־LRU
+        return 1;
+    }
+
+    // (c) MISS – צריך להכניס לקאש
+    // ליצור clone פולימורפי
+    PointerWrapper<AudioTrack> cloned = track.clone();
+
+    // אם ה-clone נכשל (wrapper ריק)
+    if (!cloned) {
+        std::cerr << "[ERROR] Track: \"" << title << "\" failed to clone\n";
+        return 0; // נחשב כ-MISS בלי עקירה (לא הכנסנו כלום)
+    }
+
+    // (c) סימולציה של load + beat analysis על ה-clone
+    cloned->load();
+    cloned->analyze_beatgrid();
+
+    // (c) לעטוף בקאש (ה־PointerWrapper כבר קיים – פשוט מעבירים ב-move ל-put)
+    bool evicted = cache.put(std::move(cloned));
+
+    // (e) קוד החזרה:
+    //  0 – MISS בלי עקירה
+    // -1 – MISS עם עקירה
+    return evicted ? -1 : 0;
 }
 
 void DJControllerService::set_cache_size(size_t new_size) {
@@ -28,6 +56,5 @@ void DJControllerService::displayCacheStatus() const {
  * TODO: Implement getTrackFromCache method
  */
 AudioTrack* DJControllerService::getTrackFromCache(const std::string& track_title) {
-    // Your implementation here
-    return nullptr; // Placeholder
+    return cache.get(track_title);
 }
