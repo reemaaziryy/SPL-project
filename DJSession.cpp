@@ -63,8 +63,33 @@ bool DJSession::load_playlist(const std::string& playlist_name)  {
 
  */
 int DJSession::load_track_to_controller(const std::string& track_name) {
-    // Your implementation here
-    return 0; // Placeholder
+    std::cout << "[System] Loading track into controller: " << track_name << "\n";
+
+    // 1. למצוא את הטראק בספרייה / פלייליסט
+    AudioTrack* track = library_service.findTrack(track_name);
+    if (!track) {
+        std::cerr << "[ERROR] Track '" << track_name << "' not found in library/playlist.\n";
+        stats.errors++;
+        return 0; // נחשב כ-MISS / error לפי החוזה
+    }
+
+    // 2. לטעון אותו לקאש דרך ה-ControllerService
+    int result = controller_service.loadTrackToCache(*track);
+
+    // 3. עדכון סטטיסטיקות קאש לפי ערך החזרה:
+    //  1  -> HIT
+    //  0  -> MISS ללא הדחה
+    // -1  -> MISS עם הדחה
+    if (result == 1) {
+        stats.cache_hits++;
+    } else if (result == 0) {
+        stats.cache_misses++;
+    } else if (result == -1) {
+        stats.cache_misses++;
+        stats.cache_evictions++;
+    }
+
+    return result;
 }
 
 /**
@@ -74,11 +99,39 @@ int DJSession::load_track_to_controller(const std::string& track_name) {
  * @return: Whether track was successfully loaded to a deck
  */
 bool DJSession::load_track_to_mixer_deck(const std::string& track_title) {
-    std::cout << "[System] Delegating track transfer to MixingEngineService for: " << track_title << std::endl;
-    // your implementation here
-    return false; // Placeholder
-}
+    std::cout << "[System] Delegating track transfer to MixingEngineService for: "
+              << track_title << std::endl;
 
+    // 1. להביא את הטראק מהקאש (בלי להוציא אותו ממנו)
+    AudioTrack* cached = controller_service.getTrackFromCache(track_title);
+    if (!cached) {
+        std::cerr << "[ERROR] Track '" << track_title
+                  << "' not found in controller cache.\n";
+        stats.errors++;
+        return false;
+    }
+
+    // 2. לטעון אותו לדק דרך MixingEngineService
+    int deck_index = mixing_service.loadTrackToDeck(*cached);
+    if (deck_index < 0) {
+        std::cerr << "[ERROR] Failed to load cached track '"
+                  << track_title << "' to mixer deck.\n";
+        stats.errors++;
+        return false;
+    }
+
+    // 3. לעדכן סטטיסטיקות טעינת דקים
+    if (deck_index == 0) {
+        stats.deck_loads_a++;
+    } else if (deck_index == 1) {
+        stats.deck_loads_b++;
+    }
+
+    // כל טעינה מוצלחת לדק נחשבת כטרנזישן
+    stats.transitions++;
+
+    return true;
+}
 /**
  * @brief Main simulation loop that orchestrates the DJ performance session.
  * @note Updates session statistics (stats) throughout processing
@@ -109,6 +162,70 @@ void DJSession::simulate_dj_performance() {
 
     std::cout << "TODO: Implement the DJ performance simulation workflow here." << std::endl;
     // Your implementation here
+    // פונקציית עזר פנימית שמטפלת בפלייליסט אחד
+    auto process_playlist = [this](const std::string& playlist_name) {
+        std::cout << "\n[System] Loading playlist into session: "
+                  << playlist_name << std::endl;
+
+        if (!load_playlist(playlist_name)) {
+            std::cerr << "[ERROR] Failed to load playlist '" << playlist_name
+                      << "'. Skipping.\n";
+            stats.errors++;
+            return;
+        }
+
+        for (const std::string& title : track_titles) {
+            std::cout << "\n-- Processing track: " << title << " --" << std::endl;
+            stats.tracks_processed++;
+
+            // 1. לטעון את הטראק לקונטרולר (קאש)
+            int cache_result = load_track_to_controller(title);
+
+            if (cache_result == 1) {
+                std::cout << "[Cache] HIT for '" << title << "'\n";
+            } else if (cache_result == 0) {
+                std::cout << "[Cache] MISS (no eviction) for '" << title << "'\n";
+            } else if (cache_result == -1) {
+                std::cout << "[Cache] MISS with eviction for '" << title << "'\n";
+            }
+
+            // 2. לטעון את הטראק מהקאש לדק
+            if (!load_track_to_mixer_deck(title)) {
+                // השגיאה כבר נספרה בפונקציה
+                continue;
+            }
+
+            // אופציונלי: להדפיס מצב קאש ודקים
+            controller_service.displayCacheStatus();
+            mixing_service.displayDeckStatus();
+        }
+    };
+
+    // 4. מצב play_all או בחירה אינטראקטיבית של פלייליסט
+    if (play_all) {
+        // לעבור על כל הפלייליסטים לפי סדר אלפביתי
+        std::vector<std::string> playlist_names;
+        for (const auto& pair : session_config.playlists) {
+            playlist_names.push_back(pair.first);
+        }
+        std::sort(playlist_names.begin(), playlist_names.end());
+
+        for (const auto& name : playlist_names) {
+            process_playlist(name);
+        }
+    } else {
+        // מצב אינטראקטיבי – לבחור פלייליסט אחד מהתפריט
+        std::string selected = display_playlist_menu_from_config();
+        if (selected.empty()) {
+            std::cout << "[System] No playlist selected. Ending session.\n";
+            print_session_summary();
+            return;
+        }
+        process_playlist(selected);
+    }
+
+    // 5. בסוף – סיכום סשן
+    print_session_summary();
 }
 
 
