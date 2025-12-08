@@ -13,23 +13,11 @@ WAVTrack::WAVTrack(const std::string& title, const std::vector<std::string>& art
 void WAVTrack::load() {
     // TODO: Implement realistic WAV loading simulation
     // NOTE: Use exactly 2 spaces before the arrow (→) character
-     std::cout << "[WAVTrack::load] Loading WAV: \"" << title << "\" at " << sample_rate << "Hz/" << bit_depth << "bit (uncompressed)..."
-     << std::endl;
 
-    long long size = static_cast<long long>(duration_seconds)
-                   * static_cast<long long>(sample_rate)
-                   * (bit_depth / 8)
-                   * 2LL;
-
-    std::cout << "  → Estimated file size: " << size << " bytes" << std::endl;
-    std::cout << "  → Fast loading due to uncompressed format." << std::endl;
 }
 
 void WAVTrack::analyze_beatgrid() {
-    std::cout << "[WAVTrack::analyze_beatgrid] Analyzing beat grid for: \"" << title << "\"" << std::endl ;
-    double beats = (duration_seconds / 60.0) * bpm;
-
-    std::cout << "  → Estimated beats: " << beats  << "  → Precision factor: 1.0 (uncompressed audio)" << std::endl;;
+    std::cout << "[WAVTrack::analyze_beatgrid] Analyzing beat grid for: \"" << title << "\"\n";
     // TODO: Implement WAV-specific beat detection analysis
     // Requirements:
     // 1. Print analysis message with track title
@@ -42,28 +30,10 @@ double WAVTrack::get_quality_score() const {
     // TODO: Implement WAV quality scoring
     // NOTE: Use exactly 2 spaces before each arrow (→) character
     // NOTE: Cast beats to integer when printing
-    double sc = 70.0;
-    if (sample_rate >= 44100) {
-        sc += 10.0;
-    }
-    if (sample_rate >= 96000) {
-        sc = sc+ 5.0;
-    }
-
-    if (bit_depth >= 16) {
-        sc += 10.0;
-    }
-    if (bit_depth >= 24) {
-        sc += 5.0;
-    }
-
-    if (sc > 100.0) {
-        sc = 100.0;
-    }
-    return sc; // Replace with your implementation
+    return 0.0; // Replace with your implementation
 }
 
 PointerWrapper<AudioTrack> WAVTrack::clone() const {
     // TODO: Implement the clone method
-    return PointerWrapper<AudioTrack>(new WAVTrack(*this)); // Replace with your implementation
+    return PointerWrapper<AudioTrack>(nullptr); // Replace with your implementation
 }
